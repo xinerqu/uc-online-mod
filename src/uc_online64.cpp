@@ -220,6 +220,15 @@ bool UCOnline64::InitializeSteamClient() {
     }
 }
 
+// UTF-8 → UTF-16 转换，用于支持中文等 Unicode 路径
+static std::wstring Utf8ToWide(const std::string& utf8) {
+    if (utf8.empty()) return {};
+    int len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), static_cast<int>(utf8.size()), NULL, 0);
+    std::wstring wstr(len, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), static_cast<int>(utf8.size()), &wstr[0], len);
+    return wstr;
+}
+
 bool UCOnline64::LaunchGame() {
     _logger->Log("Attempting to launch game: " + _gameExecutable);
 
@@ -229,7 +238,10 @@ bool UCOnline64::LaunchGame() {
         return false;
     }
 
-    if (!std::filesystem::exists(_gameExecutable)) {
+    // 转为宽字符路径（UTF-16），支持中文等 Unicode 字符
+    std::wstring wExePath = Utf8ToWide(_gameExecutable);
+
+    if (!std::filesystem::exists(wExePath)) {
         _logger->LogError("Game executable not found (Did you write it correctly? Path and all too, if applicable.): " + _gameExecutable);
         std::cout << "Game executable not found (Did you write it correctly? Path and all too, if applicable.): " << _gameExecutable << std::endl;
         return false;
@@ -239,8 +251,8 @@ bool UCOnline64::LaunchGame() {
         _logger->Log("Launching game: " + _gameExecutable + " " + _gameArguments);
         std::cout << "Launching game: " << _gameExecutable << " " << _gameArguments << std::endl;
 
-        std::filesystem::path exePath(_gameExecutable);
-        std::string workingDir = exePath.parent_path().string();
+        std::filesystem::path exePath(wExePath);
+        std::wstring workingDir = exePath.parent_path().wstring();
 
         // 设置 SteamOverlayGameId，让 overlay 显示正确的游戏名称
         if (_ogAppID > 0) {
@@ -251,12 +263,12 @@ bool UCOnline64::LaunchGame() {
             _logger->Log("Set SteamOverlayGameId to currentAppID (no ogAppID configured): " + std::to_string(_currentAppID));
         }
 
-        STARTUPINFOA si = { sizeof(si) };
+        STARTUPINFOW si = { sizeof(si) };
         PROCESS_INFORMATION pi;
 
-        std::string commandLine = "\"" + _gameExecutable + "\" " + _gameArguments;
+        std::wstring commandLine = L"\"" + wExePath + L"\" " + Utf8ToWide(_gameArguments);
 
-        if (CreateProcessA(NULL, const_cast<char*>(commandLine.c_str()), NULL, NULL, FALSE, 0, NULL, workingDir.c_str(), &si, &pi)) {
+        if (CreateProcessW(NULL, const_cast<wchar_t*>(commandLine.c_str()), NULL, NULL, FALSE, 0, NULL, workingDir.c_str(), &si, &pi)) {
             _logger->Log("Game launched successfully! (PID: " + std::to_string(pi.dwProcessId) + ")");
             _hGameProcess = pi.hProcess;     // 保存句柄，后续 WaitForGameExit 等待退出
             CloseHandle(pi.hThread);         // 线程句柄不需要，关掉
