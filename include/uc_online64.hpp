@@ -41,6 +41,9 @@ public:
     std::string GetSteamApiDllPath() const;
     void SetSteamApiDllPath(const std::string& dllPath);
 
+    // 等待游戏进程退出（阻塞），退出后自动清理
+    void WaitForGameExit();
+
 private:
     bool _steamInitialized = false;
     uint32_t _currentAppID;
@@ -50,6 +53,7 @@ private:
     std::string _gameExecutable;
     std::string _gameArguments;
     std::string _steamApiDllPath;
+    HANDLE _hGameProcess = NULL;
 
     bool InitializeSteamInterfaces();
     bool InitializeSteamGameServer();

@@ -264,9 +264,8 @@ bool UCOnline::LaunchGame() {
 
         if (CreateProcessA(NULL, const_cast<char*>(commandLine.c_str()), NULL, NULL, FALSE, 0, NULL, workingDir.c_str(), &si, &pi)) {
             _logger->Log("Game launched successfully! (PID: " + std::to_string(pi.dwProcessId) + ")");
-            std::cout << "Game launched successfully! The game's window should appear shortly. This window can be closed and / or may close on its own." << std::endl;
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
+            _hGameProcess = pi.hProcess;     // 保存句柄，后续 WaitForGameExit 等待退出
+            CloseHandle(pi.hThread);         // 线程句柄不需要，关掉
             return true;
         } else {
             _logger->LogError("Failed to launch game process");
@@ -340,4 +339,14 @@ void UCOnline::SetSteamApiDllPath(const std::string& dllPath) {
     _steamApiDllPath = dllPath;
     _config->SetSteamApiDllPath(dllPath);
     _config->SaveConfig();
+}
+
+void UCOnline::WaitForGameExit() {
+    if (_hGameProcess != NULL) {
+        _logger->Log("Waiting for game process to exit...");
+        WaitForSingleObject(_hGameProcess, INFINITE);
+        CloseHandle(_hGameProcess);
+        _hGameProcess = NULL;
+        _logger->Log("Game process exited");
+    }
 }
